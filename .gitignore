@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Ignore temporary vim file
+.*.swp
+
+# Ignore python Cache file
+**/__pycache__/
