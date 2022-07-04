@@ -116,6 +116,8 @@ globals:
 external_components:
 - source: github://hlyi/govee2mqtt@dev
   components: [ govee2mqtt ]
+- source: github://hlyi/esphome@2022.6.2-rrnf
+  components: [ remote_receiver_nf, remote_base ]
 
 mqtt:
   broker: %1.1.1.1%
