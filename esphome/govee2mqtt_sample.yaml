@@ -1,0 +1,171 @@
+esphome:
+  name: govee-h5040
+
+esp8266:
+  board: esp07s
+
+ota:
+  password: %ota_password%
+
+wifi:
+  networks:
+  - ssid: %your_ssid%
+    password: %wifi_password%
+  ap:
+    ssid: Govee-H5040
+    password: %ap_password%
+
+captive_portal: {}
+
+light:
+- platform: status_led
+  id: gw_status_led
+  pin:
+    number: 5
+    inverted: true
+  internal: true
+  name: gw_status_led
+
+output:
+- platform: slow_pwm
+  id: pairing_light
+  pin:
+    number: 4
+    inverted: false
+  period: 1s
+  restart_cycle_on_state_change: true
+
+switch:
+- platform: template
+  name: Govee H5040 Pairing Mode
+  id: pairing
+  lambda: !lambda |-
+    return id(q2m).pairing_mode();
+  turn_on_action:
+    then:
+    - output.turn_on:
+        id: pairing_light
+    - output.set_level:
+        level: 0.5
+        id: pairing_light
+    - light.turn_on:
+        id: gw_status_led
+        state: true
+    - govee2mqtt.pairing_on:
+        id: q2m
+  turn_off_action:
+    then:
+    - govee2mqtt.pairing_off:
+        id: q2m
+    - light.turn_off:
+        id: gw_status_led
+        state: false
+    - output.turn_off:
+        id: pairing_light
+
+text_sensor:
+- platform: version
+  name: Govee H5040 ESPHome Version
+- platform: wifi_info
+  ip_address:
+    name: Govee H5040 IP Address
+  ssid:
+    name: Govee H5040 SSID
+  bssid:
+    name: Govee H5040 BSSID
+
+sensor:
+- platform: wifi_signal
+  name: Govee H5040 WiFi Signal
+  update_interval: 60s
+  filters:
+  - delta: 0.01
+  - throttle: 300s
+- platform: uptime
+  name: Govee H5040 Uptime
+  filters:
+  - throttle: 300s
+
+binary_sensor:
+- platform: gpio
+  pin:
+    number: 0
+    inverted: true
+  name: Govee H5040 Signal Button
+- platform: gpio
+  pin:
+    number: 2
+    inverted: true
+  name: Govee H5040 Power Button
+  internal: true
+  filters:
+  - delayed_on: 3s
+  on_press:
+  - then:
+    - switch.turn_on:
+        id: pairing
+    - delay: 20s
+    - switch.turn_off:
+        id: pairing
+
+globals:
+- id: allowedlist
+  type: std::map<int, std::vector<std::string>>
+  initial_value: %'{{0x1122,{"H5054","Govee WaterLeak Sensor 01"}},{0x3344,{"H5054","Govee WaterLeak Sensor 02"}}}'%
+
+external_components:
+- source: github://hlyi/govee2mqtt@dev
+  components: [ govee2mqtt ]
+
+mqtt:
+  broker: %1.1.1.1%
+  id: mqtt_client
+  topic_prefix: govee2mqtt/gateway
+  on_connect:
+  - then:
+    - delay: 1s
+    - govee2mqtt.pairing_off:
+        id: q2m
+    - govee2mqtt.send_discovery:
+        id: q2m
+  on_json_message:
+  - topic: govee2mqtt/pairing/devices/set
+    then:
+    - govee2mqtt.mqtt_set_dev_list:
+        id: q2m
+    qos: 0
+  - topic: govee2mqtt/pairing/devices/add
+    then:
+    - govee2mqtt.mqtt_add_dev_list:
+        id: q2m
+    qos: 0
+  - topic: govee2mqtt/pairing/devices/remove
+    then:
+    - govee2mqtt.mqtt_remove_dev_list:
+        id: q2m
+    qos: 0
+
+govee2mqtt:
+  id: q2m
+  dev_list: allowedlist
+  mqtt_id: mqtt_client
+
+remote_receiver_nf:
+- on_govee:
+  - then:
+    - govee2mqtt.play_govee_data:
+        id: q2m
+  pin:
+    number: 12
+    inverted: false
+  id: govee_rf_rx
+  tolerance: 20
+  filter: 100us
+  idle: 10ms
+  buffer_size: 1024
+  sync_space_min: 8300us
+  sync_space_max: 9500us
+  early_check_thres: 100
+  sync_space_is_high: false
+  repeat_space_min: 1100us
+  num_edge_min: 16
